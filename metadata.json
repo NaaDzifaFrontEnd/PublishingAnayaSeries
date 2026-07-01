@@ -1,0 +1,6 @@
+{
+  "name": "The AnayaSeries Publishing Platform",
+  "description": "A dynamic digital publishing system for a Christian children's book brand, featuring book sales, resources, blogs, dynamic admin controls, and AI features like book recommendations, personalized summaries, and an interactive assistant.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

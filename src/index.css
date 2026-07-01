@@ -1,0 +1,63 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-serif: "Georgia", "Playfair Display", ui-serif, serif;
+  
+  --color-brand-green: #2D4F3C;
+  --color-brand-green-light: #416B54;
+  --color-brand-green-dark: #1A3326;
+  --color-brand-gold: #D4AF37;
+  --color-brand-gold-light: #E2C364;
+  --color-brand-gold-dark: #B39226;
+  --color-brand-cream: #FDFBF7;
+  --color-brand-cream-dark: #E8E2D9;
+  --color-brand-charcoal: #2C2A29;
+  --color-brand-muted: #6B665E;
+  --color-brand-terracotta: #C87D55;
+}
+
+/* Custom Base styles */
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-brand-cream);
+  color: var(--color-brand-charcoal);
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6, .font-serif {
+  font-family: var(--font-serif);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-brand-cream-dark);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-brand-green);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-brand-gold-dark);
+}
+
+/* Premium microinteractions */
+.premium-shadow {
+  box-shadow: 0 4px 20px -2px rgba(45, 79, 60, 0.08);
+}
+.premium-shadow-hover:hover {
+  box-shadow: 0 12px 30px -4px rgba(45, 79, 60, 0.12);
+  transform: translateY(-2px);
+  transition: all 0.3s ease;
+}
+.gold-gradient {
+  background: linear-gradient(135deg, #D4AF37 0%, #E2C364 100%);
+}
+.green-gradient {
+  background: linear-gradient(135deg, #2D4F3C 0%, #416B54 100%);
+}
