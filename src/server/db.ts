@@ -433,6 +433,22 @@ export const db = {
     writeDB(data);
     return resource;
   },
+  updateResource: (id: string, resource: Partial<PrintableResource>) => {
+    const data = readDB();
+    const idx = data.resources.findIndex((r) => r.id === id);
+    if (idx !== -1) {
+      data.resources[idx] = { ...data.resources[idx], ...resource };
+      writeDB(data);
+      return data.resources[idx];
+    }
+    return null;
+  },
+  deleteResource: (id: string) => {
+    const data = readDB();
+    data.resources = data.resources.filter((r) => r.id !== id);
+    writeDB(data);
+    return true;
+  },
   incrementResourceDownload: (id: string) => {
     const data = readDB();
     const r = data.resources.find((res) => res.id === id);
