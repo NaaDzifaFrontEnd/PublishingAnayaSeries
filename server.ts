@@ -6,6 +6,7 @@
 import express from "express";
 import path from "path";
 import dotenv from "dotenv";
+import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
 import { db } from "./src/server/db.js";
@@ -15,7 +16,16 @@ dotenv.config();
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+// Support larger payloads for base64 file uploads
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
+
+// Ensure uploads directory exists and is served statically
+const UPLOADS_DIR = path.join(process.cwd(), "uploads");
+if (!fs.existsSync(UPLOADS_DIR)) {
+  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+}
+app.use("/uploads", express.static(UPLOADS_DIR));
 
 // LAZY GEMINI API CLIENT INITIALIZATION
 let aiClient: GoogleGenAI | null = null;
@@ -158,6 +168,58 @@ app.post("/api/resources", (req, res) => {
     const resource = db.addResource(req.body);
     res.status(201).json(resource);
   } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/resources/:id", (req, res) => {
+  try {
+    const updated = db.updateResource(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: "Resource not found" });
+    res.json(updated);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/resources/:id", (req, res) => {
+  try {
+    db.deleteResource(req.params.id);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ADMIN FILE UPLOAD ENDPOINT
+app.post("/api/admin/upload", (req, res) => {
+  try {
+    const { fileName, fileType, base64Data } = req.body;
+    if (!fileName || !base64Data) {
+      return res.status(400).json({ error: "Missing fileName or base64Data" });
+    }
+
+    // Strip base64 metadata prefix if present (e.g., "data:image/png;base64,")
+    const matches = base64Data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+    let buffer: Buffer;
+
+    if (matches && matches.length === 3) {
+      buffer = Buffer.from(matches[2], 'base64');
+    } else {
+      buffer = Buffer.from(base64Data, 'base64');
+    }
+
+    // Clean up filename to prevent directory traversal and remove problematic characters
+    const cleanFileName = path.basename(fileName).replace(/[^a-zA-Z0-9.\-_]/g, "_");
+    const uniqueFileName = `${Date.now()}-${cleanFileName}`;
+    const filePath = path.join(UPLOADS_DIR, uniqueFileName);
+
+    fs.writeFileSync(filePath, buffer);
+
+    const fileUrl = `/uploads/${uniqueFileName}`;
+    res.status(200).json({ success: true, url: fileUrl });
+  } catch (err: any) {
+    console.error("Upload error:", err);
     res.status(500).json({ error: err.message });
   }
 });
