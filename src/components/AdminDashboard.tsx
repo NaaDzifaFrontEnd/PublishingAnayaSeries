@@ -12,6 +12,133 @@ interface AdminDashboardProps {
   onRefreshBooks: () => void;
 }
 
+interface FileUploaderProps {
+  label: string;
+  accept: string;
+  onUploadSuccess: (url: string) => void;
+  currentUrl?: string;
+  type: "image" | "file";
+  darkMode: boolean;
+}
+
+const FileUploader: React.FC<FileUploaderProps> = ({
+  label,
+  accept,
+  onUploadSuccess,
+  currentUrl,
+  type,
+  darkMode
+}) => {
+  const [isUploading, setIsUploading] = React.useState(false);
+  const [dragOver, setDragOver] = React.useState(false);
+  const [error, setError] = React.useState("");
+
+  const handleFile = async (file: File) => {
+    setIsUploading(true);
+    setError("");
+
+    // Convert file to base64
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = async () => {
+      const base64Data = reader.result as string;
+      try {
+        const response = await fetch("/api/admin/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fileName: file.name,
+            fileType: file.type,
+            base64Data
+          })
+        });
+
+        const data = await response.json();
+        if (response.ok && data.success) {
+          onUploadSuccess(data.url);
+        } else {
+          setError(data.error || "Upload failed");
+        }
+      } catch (err: any) {
+        setError(err.message || "Network error during upload");
+      } finally {
+        setIsUploading(false);
+      }
+    };
+    reader.onerror = () => {
+      setError("Error reading file");
+      setIsUploading(false);
+    };
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      handleFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const onChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handleFile(e.target.files[0]);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <label className="font-semibold text-stone-400 block text-xs">{label}</label>
+      <div
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={onDrop}
+        className={`border-2 border-dashed rounded-xl p-4 flex flex-col items-center justify-center transition-all ${
+          dragOver
+            ? "border-brand-gold bg-brand-gold/5"
+            : darkMode
+              ? "border-[#3C3A39] hover:border-[#5C5A59] bg-[#1a1918]"
+              : "border-stone-200 hover:border-stone-300 bg-stone-50"
+        } relative overflow-hidden min-h-[110px]`}
+      >
+        {isUploading ? (
+          <div className="flex flex-col items-center space-y-2 py-2">
+            <div className="w-6 h-6 border-2 border-brand-gold border-t-transparent rounded-full animate-spin" />
+            <span className="text-[11px] text-stone-400">Uploading file...</span>
+          </div>
+        ) : (
+          <div className="text-center space-y-2 w-full">
+            {currentUrl ? (
+              <div className="flex items-center justify-between bg-black/5 dark:bg-white/5 rounded-lg px-3 py-1.5 text-[11px]">
+                <span className="truncate max-w-[180px] text-stone-400 font-mono text-[10px]">{currentUrl}</span>
+                {type === "image" ? (
+                  <img src={currentUrl} alt="Preview" className="w-8 h-8 rounded object-cover ml-2 border border-stone-200" referrerPolicy="no-referrer" />
+                ) : (
+                  <FileText className="w-5 h-5 text-brand-gold ml-2 flex-shrink-0" />
+                )}
+              </div>
+            ) : (
+              <span className="text-[11px] text-stone-400 italic block">No file selected yet</span>
+            )}
+            <div className="text-[11px]">
+              <span className="text-stone-400">Drag & drop or </span>
+              <label className="text-brand-gold hover:text-brand-gold-dark cursor-pointer font-semibold underline">
+                browse
+                <input
+                  type="file"
+                  accept={accept}
+                  onChange={onChange}
+                  className="hidden"
+                />
+              </label>
+            </div>
+          </div>
+        )}
+        {error && <span className="text-[10px] text-red-500 font-medium mt-1 block">{error}</span>}
+      </div>
+    </div>
+  );
+};
+
 export default function AdminDashboard({ darkMode, onRefreshBooks }: AdminDashboardProps) {
   const [isAuthenticated, setIsAuthenticated] = React.useState(false);
   const [password, setPassword] = React.useState("");
@@ -46,6 +173,7 @@ export default function AdminDashboard({ darkMode, onRefreshBooks }: AdminDashbo
   const [bookStock, setBookStock] = React.useState(50);
   const [bookIsFeatured, setBookIsFeatured] = React.useState(false);
   const [bookImageUrl, setBookImageUrl] = React.useState("https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=400");
+  const [bookPdfUrl, setBookPdfUrl] = React.useState("");
   const [editingBookId, setEditingBookId] = React.useState<string | null>(null);
 
   // Form States - Blog Creation
@@ -62,6 +190,8 @@ export default function AdminDashboard({ darkMode, onRefreshBooks }: AdminDashbo
   const [resAge, setResAge] = React.useState("3-5");
   const [resGated, setResGated] = React.useState(true);
   const [resImageUrl, setResImageUrl] = React.useState("https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=400");
+  const [resDownloadUrl, setResDownloadUrl] = React.useState("");
+  const [editingResourceId, setEditingResourceId] = React.useState<string | null>(null);
 
   // Newsletter blast
   const [nlSubject, setNlSubject] = React.useState("");
@@ -114,7 +244,7 @@ export default function AdminDashboard({ darkMode, onRefreshBooks }: AdminDashbo
       pricePhysical: Number(bookPricePhysical),
       priceDigital: Number(bookPriceDigital),
       imageUrl: bookImageUrl,
-      pdfUrl: `/downloads/${bookTitle.toLowerCase().replace(/\s+/g, "-")}.pdf`,
+      pdfUrl: bookPdfUrl || `/downloads/${bookTitle.toLowerCase().replace(/\s+/g, "-")}.pdf`,
       ageRange: bookAgeRange,
       categories: bookCategories.split(",").map(c => c.trim()),
       bibleVerse: bookBibleVerse,
@@ -171,6 +301,8 @@ export default function AdminDashboard({ darkMode, onRefreshBooks }: AdminDashbo
     setBookStock(50);
     setBookIsFeatured(false);
     setEditingBookId(null);
+    setBookImageUrl("https://images.unsplash.com/photo-1543002588-bfa74002ed7e?auto=format&fit=crop&q=80&w=400");
+    setBookPdfUrl("");
   };
 
   const handleEditBook = (b: Book) => {
@@ -193,6 +325,7 @@ export default function AdminDashboard({ darkMode, onRefreshBooks }: AdminDashbo
     setBookStock(b.stock);
     setBookIsFeatured(b.isFeatured);
     setBookImageUrl(b.imageUrl);
+    setBookPdfUrl(b.pdfUrl || "");
   };
 
   const handleDeleteBook = async (id: string) => {
@@ -257,33 +390,75 @@ export default function AdminDashboard({ darkMode, onRefreshBooks }: AdminDashbo
     }
   };
 
-  // RESOURCE CREATION
+  // RESOURCE CREATION & EDITING
   const handleSaveResource = async (e: React.FormEvent) => {
     e.preventDefault();
     const payload = {
-      id: resTitle.toLowerCase().replace(/\s+/g, "-"),
       title: resTitle,
       description: resDescription,
       imageUrl: resImageUrl,
-      downloadUrl: `/downloads/${resTitle.toLowerCase().replace(/\s+/g, "-")}.pdf`,
+      downloadUrl: resDownloadUrl || `/downloads/${resTitle.toLowerCase().replace(/\s+/g, "-")}.pdf`,
       downloadCount: 0,
       isGated: resGated,
       ageRange: resAge
     };
 
     try {
-      const res = await fetch("/api/resources", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
+      let res;
+      if (editingResourceId) {
+        res = await fetch(`/api/resources/${editingResourceId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+      } else {
+        res = await fetch("/api/resources", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: resTitle.toLowerCase().replace(/\s+/g, "-"), ...payload })
+        });
+      }
+
       if (res.ok) {
-        setResTitle("");
-        setResDescription("");
+        resetResourceForm();
         loadAllAdminData();
       }
     } catch (err) {
       console.error("Error saving resource", err);
+    }
+  };
+
+  const resetResourceForm = () => {
+    setResTitle("");
+    setResDescription("");
+    setResAge("3-5");
+    setResGated(true);
+    setResImageUrl("https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&q=80&w=400");
+    setResDownloadUrl("");
+    setEditingResourceId(null);
+  };
+
+  const handleEditResource = (r: PrintableResource) => {
+    setEditingResourceId(r.id);
+    setResTitle(r.title);
+    setResDescription(r.description);
+    setResAge(r.ageRange);
+    setResGated(r.isGated);
+    setResImageUrl(r.imageUrl);
+    setResDownloadUrl(r.downloadUrl);
+  };
+
+  const handleDeleteResource = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this resource/printable?")) return;
+    try {
+      const res = await fetch(`/api/resources/${id}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        loadAllAdminData();
+      }
+    } catch (err) {
+      console.error("Error deleting resource", err);
     }
   };
 
@@ -781,14 +956,42 @@ export default function AdminDashboard({ darkMode, onRefreshBooks }: AdminDashbo
                     />
                   </div>
 
-                  <div className="md:col-span-2 space-y-1">
-                    <label className="font-semibold text-stone-400">Cover Mockup Image Url</label>
-                    <input
-                      type="text"
-                      value={bookImageUrl}
-                      onChange={(e) => setBookImageUrl(e.target.value)}
-                      className="w-full border rounded-xl px-3 py-2 bg-transparent"
-                    />
+                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <FileUploader
+                        label="Upload Cover Image"
+                        accept="image/*"
+                        onUploadSuccess={(url) => setBookImageUrl(url)}
+                        currentUrl={bookImageUrl}
+                        type="image"
+                        darkMode={darkMode}
+                      />
+                      <input
+                        type="text"
+                        value={bookImageUrl}
+                        onChange={(e) => setBookImageUrl(e.target.value)}
+                        placeholder="Or paste cover image URL..."
+                        className="w-full border rounded-xl px-3 py-2 bg-transparent text-xs"
+                      />
+                    </div>
+                    
+                    <div className="space-y-1.5">
+                      <FileUploader
+                        label="Upload Digital Copy (PDF/EPUB)"
+                        accept=".pdf,.epub"
+                        onUploadSuccess={(url) => setBookPdfUrl(url)}
+                        currentUrl={bookPdfUrl}
+                        type="file"
+                        darkMode={darkMode}
+                      />
+                      <input
+                        type="text"
+                        value={bookPdfUrl}
+                        onChange={(e) => setBookPdfUrl(e.target.value)}
+                        placeholder="Or paste digital/PDF URL..."
+                        className="w-full border rounded-xl px-3 py-2 bg-transparent text-xs"
+                      />
+                    </div>
                   </div>
 
                 </div>
@@ -970,7 +1173,9 @@ export default function AdminDashboard({ darkMode, onRefreshBooks }: AdminDashbo
               <form onSubmit={handleSaveResource} className={`p-6 rounded-2xl border space-y-4 ${
                 darkMode ? "bg-[#232221] border-[#3C3A39]" : "bg-white border-stone-200"
               } premium-shadow`}>
-                <h3 className="font-serif text-xl font-bold text-brand-green border-b pb-3">Upload Gated Printable Activity Material</h3>
+                <h3 className="font-serif text-xl font-bold text-brand-green border-b pb-3">
+                  {editingResourceId ? "Edit Printable Activity Material" : "Upload Gated Printable Activity Material"}
+                </h3>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                   <div className="space-y-1">
@@ -1009,6 +1214,44 @@ export default function AdminDashboard({ darkMode, onRefreshBooks }: AdminDashbo
                     />
                   </div>
 
+                  <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <FileUploader
+                        label="Upload Material Cover Image"
+                        accept="image/*"
+                        onUploadSuccess={(url) => setResImageUrl(url)}
+                        currentUrl={resImageUrl}
+                        type="image"
+                        darkMode={darkMode}
+                      />
+                      <input
+                        type="text"
+                        value={resImageUrl}
+                        onChange={(e) => setResImageUrl(e.target.value)}
+                        placeholder="Or paste cover image URL..."
+                        className="w-full border rounded-xl px-3 py-2 bg-transparent text-xs"
+                      />
+                    </div>
+                    
+                    <div className="space-y-1.5">
+                      <FileUploader
+                        label="Upload Printable File (PDF/Image)"
+                        accept=".pdf,image/*"
+                        onUploadSuccess={(url) => setResDownloadUrl(url)}
+                        currentUrl={resDownloadUrl}
+                        type="file"
+                        darkMode={darkMode}
+                      />
+                      <input
+                        type="text"
+                        value={resDownloadUrl}
+                        onChange={(e) => setResDownloadUrl(e.target.value)}
+                        placeholder="Or paste material download URL..."
+                        className="w-full border rounded-xl px-3 py-2 bg-transparent text-xs"
+                      />
+                    </div>
+                  </div>
+
                   <div className="space-y-1 flex items-center pt-4">
                     <input
                       type="checkbox"
@@ -1023,13 +1266,78 @@ export default function AdminDashboard({ darkMode, onRefreshBooks }: AdminDashbo
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  className="bg-brand-green hover:bg-brand-green-light text-white font-bold py-2.5 px-6 rounded-xl text-xs shadow-md cursor-pointer"
-                >
-                  Publish Printable Resource
-                </button>
+                <div className="flex gap-2 pt-4 border-t">
+                  {editingResourceId && (
+                    <button
+                      type="button"
+                      onClick={resetResourceForm}
+                      className="border py-2.5 px-6 rounded-xl text-xs font-semibold hover:bg-stone-50"
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    className="bg-brand-green hover:bg-brand-green-light text-white font-bold py-2.5 px-6 rounded-xl text-xs shadow-md cursor-pointer"
+                  >
+                    {editingResourceId ? "Update Resource" : "Publish Printable Resource"}
+                  </button>
+                </div>
               </form>
+
+              <div className={`p-6 rounded-2xl border ${darkMode ? "bg-stone-900/30 border-stone-800" : "bg-white border-stone-200"} premium-shadow`}>
+                <h3 className="font-serif text-lg font-bold text-brand-green border-b pb-3 mb-4">Manage Active Printables ({resources.length})</h3>
+                <div className="overflow-x-auto text-xs">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-stone-100 dark:border-stone-800 text-stone-400 font-bold uppercase text-[10px] tracking-wider">
+                        <th className="py-3 px-2">Cover</th>
+                        <th className="py-3 px-2">Title</th>
+                        <th className="py-3 px-2">Age</th>
+                        <th className="py-3 px-2">Gated</th>
+                        <th className="py-3 px-2">Downloads</th>
+                        <th className="py-3 px-2 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100 dark:divide-stone-850">
+                      {resources.map((res) => (
+                        <tr key={res.id} className="hover:bg-stone-50 dark:hover:bg-stone-900/20">
+                          <td className="py-3 px-2">
+                            <img src={res.imageUrl} alt={res.title} className="w-10 h-10 object-cover rounded-md border border-stone-200" referrerPolicy="no-referrer" />
+                          </td>
+                          <td className="py-3 px-2 font-medium">
+                            <span className="block font-bold text-stone-700 dark:text-stone-300">{res.title}</span>
+                            <span className="block text-[10px] text-stone-400 truncate max-w-[200px]">{res.description}</span>
+                          </td>
+                          <td className="py-3 px-2 text-stone-500">{res.ageRange}</td>
+                          <td className="py-3 px-2">
+                            {res.isGated ? (
+                              <span className="px-2 py-0.5 rounded-full bg-brand-gold/10 text-brand-gold font-semibold text-[10px]">Gated (Email)</span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 font-semibold text-[10px]">Free</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-2 font-semibold text-stone-500">{res.downloadCount || 0}</td>
+                          <td className="py-3 px-2 text-right space-x-2">
+                            <button
+                              onClick={() => handleEditResource(res)}
+                              className="text-stone-500 hover:text-brand-gold font-bold transition-colors cursor-pointer"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteResource(res.id)}
+                              className="text-red-500 hover:text-red-700 font-bold transition-colors cursor-pointer"
+                            >
+                              Delete
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           )}
 
